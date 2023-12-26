@@ -38,6 +38,7 @@ let connectingAgain = false;
 /**
  * @typedef {Object} settings
  * @property {boolean} [localMute]
+ * @property {boolean} [localSilence]
  * @property {string} [video]
  * @property {string} [audio]
  * @property {string} [simulcast]
@@ -154,6 +155,7 @@ function reflectSettings() {
     let store = false;
 
     setLocalMute(settings.localMute);
+    setLocalSilence(settings.localSilence);
 
     let videoselect = getSelectElement('videoselect');
     if(!settings.hasOwnProperty('video') ||
@@ -488,7 +490,7 @@ function setButtonsVisibility() {
         ('getDisplayMedia' in navigator.mediaDevices) &&
         permissions.indexOf('present') >= 0;
     let local = !!findUpMedia('camera');
-    let mediacount = document.getElementById('peers').childElementCount;
+        let mediacount = document.getElementById('peers').childElementCount;
     let mobilelayout = isMobileLayout();
 
     // don't allow multiple presentations
@@ -496,6 +498,7 @@ function setButtonsVisibility() {
     setVisibility('unpresentbutton', local);
 
     setVisibility('mutebutton', !connected || canPresent);
+    setVisibility('silencebutton', connected);
 
     // allow multiple shared documents
     setVisibility('sharebutton', canShare);
@@ -526,6 +529,23 @@ function setLocalMute(mute, reflect) {
     }
     if(reflect)
         updateSettings({localMute: mute});
+}
+
+function setLocalSilence(silence, reflect) {
+    silenceRemoteTracks(silence);
+    let button = document.getElementById('silencebutton');
+    let icon = button.querySelector("span .fas");
+    if(silence){
+        icon.classList.add('fa-volume-off');
+        icon.classList.remove('fa-volume-up');
+        button.classList.add('muted');
+    } else {
+        icon.classList.remove('fa-volume-off');
+        icon.classList.add('fa-volume-up');
+        button.classList.remove('muted');
+    }
+    if(reflect)
+        updateSettings({localSilence: silence});
 }
 
 getSelectElement('videoselect').onchange = function(e) {
@@ -582,6 +602,13 @@ document.getElementById('mutebutton').onclick = function(e) {
     let localMute = getSettings().localMute;
     localMute = !localMute;
     setLocalMute(localMute, true);
+};
+
+document.getElementById('silencebutton').onclick = function(e) {
+    e.preventDefault();
+    let localSilence = getSettings().localSilence;
+    localSilence = !localSilence;
+    setLocalSilence(localSilence, true);
 };
 
 document.getElementById('sharebutton').onclick = function(e) {
@@ -870,8 +897,8 @@ async function setMediaChoices(done) {
 
     let devices = [];
     try {
-        if('mediaDevices' in navigator)
-            devices = await navigator.mediaDevices.enumerateDevices();
+if('mediaDevices' in navigator)
+        devices = await navigator.mediaDevices.enumerateDevices();
     } catch(e) {
         console.error(e);
         return;
@@ -1614,6 +1641,26 @@ function muteLocalTracks(mute) {
 }
 
 /**
+ * 
+ * @param {boolean} silence 
+ */
+function silenceRemoteTracks(silence) {
+    if(!serverConnection)
+        return;
+    for(let id in serverConnection.down) {
+        let c = serverConnection.down[id];
+        if(c.label === 'camera') {
+            let stream = c.stream;
+            stream.getTracks().forEach(t => {
+                if(t.kind === 'audio') {
+                    t.enabled = !silence;
+                }
+            });
+        }
+    }
+}
+
+/**
  * @param {string} id
  * @param {boolean} force
  * @param {boolean} [value]
@@ -1785,6 +1832,8 @@ async function setMedia(c, mirror, video) {
 
     setLabel(c);
     setMediaStatus(c);
+
+    silenceRemoteTracks(getSettings().localSilence);
 
     showVideo();
     resizePeers();
@@ -2907,7 +2956,7 @@ function addToChatbox(peerId, dest, nick, time, privileged, history, kind, messa
     if(dest)
         container.classList.add('message-private');
 
-    /** @type{HTMLElement} */
+/** @type{HTMLElement} */
     let body;
     if(message instanceof HTMLElement) {
         body = message;
@@ -2918,7 +2967,7 @@ function addToChatbox(peerId, dest, nick, time, privileged, history, kind, messa
     }
 
     if(kind !== 'me') {
-        let doHeader = true;
+                let doHeader = true;
         if(lastMessage.nick !== (nick || null) ||
            lastMessage.peerId !== (peerId || null) ||
            lastMessage.dest !== (dest || null) ||
@@ -2949,7 +2998,7 @@ function addToChatbox(peerId, dest, nick, time, privileged, history, kind, messa
             }
         }
 
-        let p = document.createElement('p');
+let p = document.createElement('p');
         p.appendChild(body);
         p.classList.add('message-content');
         container.appendChild(p);
@@ -3931,7 +3980,7 @@ async function start() {
 
     let parms = new URLSearchParams(window.location.search);
     if(window.location.search)
-        window.history.replaceState(null, '', window.location.pathname);
+    window.history.replaceState(null, '', window.location.pathname);
     setTitle(groupStatus.displayName || capitalise(group));
 
     addFilters();
